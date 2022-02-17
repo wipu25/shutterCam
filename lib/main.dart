@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shutter_app/Screen/CameraPage.dart';
+import 'package:shutter_app/module.dart';
 
 Future<void> main() async {
+  //Check for available cameras of the devices
   WidgetsFlutterBinding.ensureInitialized();
-
   final cameras = await availableCameras();
+
+  //Run ths main app with splash screen passing the available camera
   runApp(MaterialApp(
     debugShowCheckedModeBanner: false,
     title: 'Material App',
@@ -41,8 +45,19 @@ class SplashScreen extends StatelessWidget {
                           side: BorderSide(color: Colors.blue, width: 2)
                       ),
                     ),
-                    onPressed: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => CameraPage(cameras: cameras)));
+                    onPressed: () async {
+                      //Calling shared preference retrieving local data storage of old user setting
+                      final Future<SharedPreferences> prefs = SharedPreferences.getInstance();
+                      final userLastSetting = await prefs.then((value) {
+                        return UserSettingData(
+                            exposure: value.getDouble('sliderValue') ?? 0.5,
+                            choosePhoto: value.getInt('dropDownValue') ?? 10,
+                            width: value.getString('width') ?? "",
+                            height: value.getString('height') ?? ""
+                        );
+                      });
+                      //Push to camera page after collecting user pref and pass to the new page
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => CameraPage(cameras: cameras,userLastSetting: userLastSetting)));
                     },
                     child: Text("START")
                 ),
