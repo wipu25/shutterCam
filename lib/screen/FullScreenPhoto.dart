@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class FullScreenPhoto extends StatelessWidget {
@@ -9,6 +8,7 @@ class FullScreenPhoto extends StatelessWidget {
     required this.path
   }) : super(key: key);
 
+  //display fullscreen photo
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -33,7 +33,7 @@ class FullScreenPhoto extends StatelessWidget {
         width: double.infinity,
         height: double.infinity,
         child: Center(
-            child: Image.file(File(path))
+            child: Image.file(File(path),fit: BoxFit.fitWidth,)
         ),
       ),
     );

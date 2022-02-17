@@ -9,9 +9,11 @@ import 'PhotoList.dart';
 
 class CameraPage extends StatefulWidget {
   final List<CameraDescription> cameras;
+  final UserSettingData userLastSetting;
   const CameraPage({
     Key? key,
-    required this.cameras
+    required this.cameras,
+    required this.userLastSetting
   }) : super(key: key);
 
   @override
@@ -19,9 +21,14 @@ class CameraPage extends StatefulWidget {
 }
 
 class _CameraPageState extends State<CameraPage> {
+
+  //Init temporary data
   List<String> countTakePhoto = [];
-  double sliderValue = 10.0;
-  int dropDownValue = 1;
+  late double sliderValue = widget.userLastSetting.exposure;
+  late int dropDownValue = widget.userLastSetting.choosePhoto;
+  //Dummy data if can't retrieve min/max exposure
+  double minExposure = -50;
+  double maxExposure = 50;
   late CameraController _controller;
   late Future<void> _initializeControllerFuture;
   final TextEditingController widthController = TextEditingController();
@@ -31,20 +38,32 @@ class _CameraPageState extends State<CameraPage> {
   @override
   void initState() {
     super.initState();
-    _prefs.then((value) {
-      setState(() {
-        dropDownValue = value.getInt('dropDownValue')!;
-        sliderValue = value.getDouble('sliderValue')!;
-      });
-      widthController.text = value.getString('width')!;
-      heightController.text = value.getString('height')!;
+    initCamera();
+    setState(() {
+      widthController.text = widget.userLastSetting.width;
+      heightController.text = widget.userLastSetting.height;
     });
+  }
 
+  Future<void> initCamera() async {
+    //Binding camera controller with behind camera
     _controller = CameraController(
       widget.cameras.first,
       ResolutionPreset.medium,
     );
+
+    //init camera to retrieve exposure
     _initializeControllerFuture = _controller.initialize();
+    await _initializeControllerFuture;
+    await _controller.setExposureOffset(sliderValue);
+    final minExposure = await _controller.getMinExposureOffset();
+    final maxExposure = await _controller.getMaxExposureOffset();
+
+    //set exposure for slider usage
+    setState(() {
+      this.maxExposure = maxExposure;
+      this.minExposure = minExposure;
+    });
   }
 
   @override
@@ -55,6 +74,7 @@ class _CameraPageState extends State<CameraPage> {
 
   @override
   Widget build(BuildContext context) {
+    //For camera size purpose
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
@@ -64,68 +84,65 @@ class _CameraPageState extends State<CameraPage> {
         centerTitle: false,
         automaticallyImplyLeading: false,
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-                child: Stack(
-                  children: [
-                    Container(
-                      color: Colors.black,
-                      child: Center(
-                        child: FutureBuilder<void>(
-                          future: _initializeControllerFuture,
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState == ConnectionState.done) {
-                              return Center(
-                                child:Transform.scale(
-                                  scale: 0.8/(screenWidth/screenHeight),
-                                  child: new CameraPreview(_controller),
-                                ),
-                              );
-                            } else {
-                              return const Center(child: CircularProgressIndicator());
-                            }
-                          },
-                        ),
-                      ),
+      body: GestureDetector(
+        onTap: () {
+          FocusScope.of(context).requestFocus(FocusNode());
+        },
+        child: SafeArea(
+          child: Stack(
+            children: [
+              Container(
+                alignment: Alignment.topCenter,
+                color: Colors.black,
+                child: FutureBuilder<void>(
+                  future: _initializeControllerFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.done) {
+                      //scale camera preview according to screen size
+                      return Transform.scale(scale: 0.8/screenWidth*screenHeight,child: CameraPreview(_controller));
+                    } else {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                  },
+                ),
+              ),
+              Column(
+                children: [
+                  Spacer(),
+                  Center(
+                    child: FloatingActionButton(
+                        backgroundColor: Colors.green,
+                        shape: CircleBorder(side: BorderSide(color: Colors.black, width: 2)),
+                        onPressed: () async {
+                          onTakePicture();
+                        }
                     ),
-                    Column(
+                  ),
+                  SizedBox(height: 16),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8,vertical: 4),
+                    color: Colors.blue,
+                    child: Column(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Center(
-                          child: FloatingActionButton(
-                            backgroundColor: Colors.green,
-                              shape: CircleBorder(side: BorderSide(color: Colors.black, width: 2)),
-                              onPressed: () async {
-                                onTakePicture();
-                              }
-                          ),
-                        ),
-                        SizedBox(height: 16),
+                        exposureBar(),
+                        widthHeightBar(),
+                        SizedBox(height: 8,),
+                        dropDownPhotoBar(),
+                        SizedBox(height: 8,)
                       ],
                     ),
-                  ]
-                )),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 8,vertical: 4),
-              color: Colors.blue,
-              child: Column(
-                children: [
-                  exposureBar(),
-                  widthHeightBar(),
-                  SizedBox(height: 8,),
-                  dropDownPhotoBar(),
-                  SizedBox(height: 8,)
+                  ),
                 ],
               ),
-            )
-          ],
+            ]
+          ),
         ),
       )
     );
   }
 
+  //Exposure row bar
   Widget exposureBar() {
     return Row(
       children: [
@@ -137,11 +154,13 @@ class _CameraPageState extends State<CameraPage> {
             child: Slider(
                 activeColor: Colors.black,
                 inactiveColor: Colors.black.withOpacity(0.4),
-                min: 10.0,
-                max: 60.0,
+                min: minExposure,
+                max: maxExposure,
                 value: sliderValue,
                 onChanged: (value) {
+                  //Save to local anytime user change slider
                   _prefs.then((pref) => pref.setDouble('sliderValue', value));
+                  _controller.setExposureOffset(value);
                   setState(() {
                     sliderValue = value;
                   });
@@ -151,6 +170,7 @@ class _CameraPageState extends State<CameraPage> {
     );
   }
 
+  //width height bar setting
   Widget widthHeightBar() {
     return Row(
       children: [
@@ -159,6 +179,7 @@ class _CameraPageState extends State<CameraPage> {
             child: Text("Width")
         ),
         SizedBox(width: 16),
+        //Save to local anytime user change width
         CustomTextField(
           controller: widthController,
           onChanged: (value) {
@@ -168,6 +189,7 @@ class _CameraPageState extends State<CameraPage> {
         SizedBox(width: 16),
         Text("Height"),
         SizedBox(width: 16),
+        //Save to local anytime user change height
         CustomTextField(
           controller: heightController,
           onChanged: (value) {
@@ -178,6 +200,7 @@ class _CameraPageState extends State<CameraPage> {
     );
   }
 
+  //drop down photo setting row
   Widget dropDownPhotoBar() {
     return Row(
         children: [
@@ -195,13 +218,17 @@ class _CameraPageState extends State<CameraPage> {
               underline: SizedBox(),
               icon: Icon(Icons.keyboard_arrow_up),
               onChanged: (value) {
+                //Check if user have taken more than re-selected max picture each time
                 if(countTakePhoto.length > value!){
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                     content: Text("Photo are more than that"),
                   ));
-                } else if(countTakePhoto.length == value) {
-                  toPhotoList();
-                } else {
+                } else{
+                  //if user select new max picture equal to number they take navigate to photo list
+                  if(countTakePhoto.length == value){
+                    toPhotoList();
+                  }
+                  //save change number to local storage
                   _prefs.then((pref) => pref.setInt('dropDownValue', value));
                   setState(() {
                     dropDownValue = value;
@@ -209,6 +236,7 @@ class _CameraPageState extends State<CameraPage> {
                 }
               },
               value: dropDownValue,
+              // 10 item generate through int list
               items: <int>[1,2,3,4,5,6,7,8,9,10].map<DropdownMenuItem<int>>((int value){
                 return DropdownMenuItem<int>(
                     value: value,
@@ -224,6 +252,7 @@ class _CameraPageState extends State<CameraPage> {
   }
 
   void toPhotoList() {
+    //navigate to photo list if return clear the photo that is taken
     Navigator.push(context, MaterialPageRoute(builder: (context) => PhotoList(totalPhoto: countTakePhoto)))
         .then((value) => {
       setState(() {
@@ -233,16 +262,20 @@ class _CameraPageState extends State<CameraPage> {
   }
 
   Future<void> onTakePicture() async {
+    //re-init cam making sure it still available
     await _initializeControllerFuture;
     final width = widthController.value.text;
     final height = heightController.value.text;
+    //if width height is not empty camera will take picture
     if(width.isNotEmpty && height.isNotEmpty){
       try{
         final image = await _controller.takePicture();
+        //croping process then return as file
         final crop = await cropImage(CropImageRequest(image.path, width, height));
         setState(() {
           countTakePhoto.add(crop.path);
         });
+        //if photo is not at max show loading progress
         if (countTakePhoto.length != dropDownValue) {
           showDialog(
               context: context,
@@ -268,12 +301,14 @@ class _CameraPageState extends State<CameraPage> {
               }
           );
         } else {
+          //to photo list if max photo taken
           toPhotoList();
         }
       } catch(e) {
         print(e);
       }
     } else {
+      //alert if width height not enter
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text("Please Enter Width and Height"),
       ));
