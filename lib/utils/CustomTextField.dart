@@ -1,7 +1,14 @@
-import 'package:flutter/cupertino.dart';
+
 import 'package:flutter/material.dart';
 class CustomTextField extends StatelessWidget {
-  const CustomTextField({Key? key}) : super(key: key);
+  final controller;
+  final onChanged;
+
+  const CustomTextField({
+    Key? key,
+    this.controller,
+    this.onChanged
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -13,9 +20,11 @@ class CustomTextField extends StatelessWidget {
         ),
         width: 100,
         child: TextField(
+          controller: controller,
+          onChanged: onChanged,
           decoration: InputDecoration(
-            contentPadding: EdgeInsets.zero,
-            border: InputBorder.none
+              contentPadding: EdgeInsets.zero,
+              border: InputBorder.none
           ),
           keyboardType: TextInputType.number,
         )
