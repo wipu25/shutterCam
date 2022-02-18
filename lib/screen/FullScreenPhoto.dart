@@ -29,12 +29,12 @@ class FullScreenPhoto extends StatelessWidget {
           SizedBox(width: 16)
         ],
       ),
-      body: Container(
-        width: double.infinity,
+      body: Image.file(
+        File(path),
+        fit: BoxFit.fitWidth,
         height: double.infinity,
-        child: Center(
-            child: Image.file(File(path),fit: BoxFit.fitWidth,)
-        ),
+        width: double.infinity,
+        alignment: Alignment.center,
       ),
     );
   }
